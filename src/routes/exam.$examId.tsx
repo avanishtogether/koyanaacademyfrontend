@@ -77,7 +77,7 @@ function ExamPage() {
       const d = a === q.answer ? m.correct : m.wrong;
       if (a === q.answer) correct++; else wrong++;
       score += d;
-      subjects[q.subject] += d;
+      subjects[q.subject] = (subjects[q.subject] ?? 0) + d;
     });
     addResult({ examId: exam.id, score, max: maxMarks(exam), correct, wrong, skipped: exam.questions.length - correct - wrong, violations, subjects });
     streamRef.current?.getTracks().forEach((t) => t.stop());
