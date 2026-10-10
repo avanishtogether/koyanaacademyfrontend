@@ -34,6 +34,7 @@ import {
   Radar,
 } from "recharts";
 import { SiteNav } from "@/components/SiteNav";
+import { NoticeBadges } from "@/components/StaffHub";
 import { Counter, Modal, Reveal } from "@/components/motion";
 import student from "@/assets/topper-1.jpg";
 import { celebrate } from "@/lib/celebrate";
@@ -594,7 +595,7 @@ function ParentPortal() {
                     <div className="mt-5 space-y-3">
                       {notices.map((n) => (
                         <div key={n.title} className="rounded-2xl bg-secondary/40 px-4 py-3">
-                          <p className="text-sm font-semibold text-primary">{n.title}</p>
+                          <p className="text-sm font-semibold text-primary"><NoticeBadges dept={n.dept} priority={n.priority} />{n.title}</p>
                           <p className="mt-1 text-xs text-muted-foreground">{n.body}</p>
                         </div>
                       ))}

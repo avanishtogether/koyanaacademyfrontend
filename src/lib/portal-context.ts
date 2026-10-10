@@ -1,6 +1,6 @@
 import { createContext } from "react";
 import type { Exam } from "@/data/exams";
-import type { Notice, Material, Registration, ExamResult, AdmissionApplication, AppStatus, Memo, Milestone } from "./portal-store";
+import type { Notice, Material, Registration, ExamResult, Application, Memo } from "./portal-store";
 
 export type Store = {
   notices: Notice[];
@@ -14,16 +14,12 @@ export type Store = {
   register: (r: Omit<Registration, "id" | "hallTicket">) => Registration;
   results: ExamResult[];
   addResult: (r: ExamResult) => void;
-  applications: AdmissionApplication[];
-  addApplication: (a: AdmissionApplication) => void;
-  setAppStatus: (roll: string, s: AppStatus) => void;
+  applications: Application[];
+  addApplication: (a: Omit<Application, "id" | "status" | "date">) => void;
+  setApplicationStatus: (id: string, status: Application["status"]) => void;
   memos: Memo[];
-  addMemo: (m: Omit<Memo, "id" | "time" | "status">) => void;
-  setMemoStatus: (id: string, s: Memo["status"]) => void;
-  milestones: Milestone[];
-  addMilestone: (m: Omit<Milestone, "id">) => void;
-  setMilestoneStatus: (id: string, s: Milestone["status"]) => void;
+  addMemo: (m: Omit<Memo, "id" | "status" | "time">) => void;
+  setMemoStatus: (id: string, status: Memo["status"]) => void;
 };
 
 export const PortalCtx = createContext<Store | null>(null);
-

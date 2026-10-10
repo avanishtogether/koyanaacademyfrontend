@@ -68,18 +68,13 @@ function ExamPage() {
     if (!exam || submittedRef.current) return;
     submittedRef.current = true;
     let correct = 0, wrong = 0, score = 0;
-    const subjects: Record<string, number> = {};
     exam.questions.forEach((q) => {
-      subjects[q.subject] ??= 0;
       const a = answers[q.id];
       if (a === undefined) return;
       const m = qMarks(exam, q);
-      const d = a === q.answer ? m.correct : m.wrong;
-      if (a === q.answer) correct++; else wrong++;
-      score += d;
-      subjects[q.subject] = (subjects[q.subject] ?? 0) + d;
+      if (a === q.answer) { correct++; score += m.correct; } else { wrong++; score += m.wrong; }
     });
-    addResult({ examId: exam.id, score, max: maxMarks(exam), correct, wrong, skipped: exam.questions.length - correct - wrong, violations, subjects });
+    addResult({ examId: exam.id, score, max: maxMarks(exam), correct, wrong, skipped: exam.questions.length - correct - wrong, violations, name: registrations.find((x) => x.examId === exam.id)?.name ?? "Rahul Patil", studentId: registrations.find((x) => x.examId === exam.id)?.studentId });
     streamRef.current?.getTracks().forEach((t) => t.stop());
     if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
     setStarted(false);
