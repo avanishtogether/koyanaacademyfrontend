@@ -101,7 +101,7 @@ export function ExecutionPlan() {
   );
 }
 
-export function NoticeBadges({ dept, priority }: { dept?: string; priority?: string }) {
+export function NoticeBadges({ dept, priority }: { dept?: string | undefined; priority?: string | undefined }) {
   if (!dept && !priority) return null;
   return (
     <span className="mr-2 inline-flex gap-1 align-middle">
