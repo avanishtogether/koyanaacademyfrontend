@@ -26,7 +26,7 @@ export type Registration = {
   hallTicket: string;
   studentId: string;
 };
-export type ExamResult = { examId: string; score: number; max: number; correct: number; wrong: number; skipped: number; violations: number };
+export type ExamResult = { examId: string; score: number; max: number; correct: number; wrong: number; skipped: number; violations: number; subjects?: Record<string, number> };
 
 const seedNotices: Notice[] = [
   { dept: "Exam Dept", priority: "Official Circular", id: "n0", title: "Mock exam registration is open", body: "JEE Main Mock 4, MHT-CET Mock 2 and NEET Mock 3 — book your slot on the Exams page.", audience: "Students", time: "Today" },
