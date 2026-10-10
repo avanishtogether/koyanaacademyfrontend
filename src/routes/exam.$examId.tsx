@@ -74,7 +74,7 @@ function ExamPage() {
       const m = qMarks(exam, q);
       if (a === q.answer) { correct++; score += m.correct; } else { wrong++; score += m.wrong; }
     });
-    addResult({ examId: exam.id, score, max: maxMarks(exam), correct, wrong, skipped: exam.questions.length - correct - wrong, violations });
+    addResult({ examId: exam.id, score, max: maxMarks(exam), correct, wrong, skipped: exam.questions.length - correct - wrong, violations, name: registrations.find((x) => x.examId === exam.id)?.name ?? "Rahul Patil", studentId: registrations.find((x) => x.examId === exam.id)?.studentId });
     streamRef.current?.getTracks().forEach((t) => t.stop());
     if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
     setStarted(false);

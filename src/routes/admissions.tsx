@@ -5,6 +5,7 @@ import { SiteNav } from "@/components/SiteNav";
 import { Modal } from "@/components/motion";
 import { celebrate } from "@/lib/celebrate";
 import { academyInfo as A } from "@/lib/academy-info";
+import { usePortal } from "@/lib/use-portal";
 
 export const Route = createFileRoute("/admissions")({
   head: () => ({
@@ -37,6 +38,7 @@ function Admissions() {
   const [kind, setKind] = useState<Kind>("entrance");
   const [f, setF] = useState({ name: "", school: "", cls: "Class 8", phone: "", slot: slots.entrance[0]! });
   const [slip, setSlip] = useState<Slip | null>(null);
+  const { addApplication } = usePortal();
 
   function pick(k: Kind) {
     setKind(k);
@@ -47,7 +49,9 @@ function Admissions() {
     e.preventDefault();
     if (f.name.trim().length < 2 || f.school.trim().length < 2) { toast.error("Enter student name and school"); return; }
     if (!/^[6-9]\d{9}$/.test(f.phone.replace(/\D/g, "").slice(-10))) { toast.error("Enter a valid 10-digit mobile number"); return; }
-    setSlip({ kind, ...f, roll: `NYT-${kind === "entrance" ? "EN" : "OL"}-${Math.floor(10000 + Math.random() * 89999)}` });
+    const roll = `NYT-${kind === "entrance" ? "EN" : "OL"}-${Math.floor(10000 + Math.random() * 89999)}`;
+    setSlip({ kind, ...f, roll });
+    addApplication({ kind, ...f, roll, taluka: "Patan" });
     celebrate();
   }
 
