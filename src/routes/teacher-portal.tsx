@@ -2,8 +2,12 @@ import { createFileRoute } from "@tanstack/react-router";
 import { OmrScanner } from "@/components/OmrScanner";
 import { TestBuilder } from "@/components/TestBuilder";
 import { ExamDownloads } from "@/components/ExamDownloads";
+import { RegistrationLedgers } from "@/components/RegistrationLedgers";
+import { MasterResultsLedger } from "@/components/MasterResultsLedger";
+import { ContactDirectory, ExecutionPlan, MemoBoard } from "@/components/StaffHub";
+import type { Dept } from "@/lib/portal-store";
 import { AnimatePresence, motion } from "framer-motion";
-import { CalendarCheck, ClipboardList, Download, FileCheck, Megaphone, Table2, Upload } from "lucide-react";
+import { CalendarCheck, ClipboardList, Contact, Download, FileCheck, IndianRupee, ListChecks, Megaphone, StickyNote, Table2, Trophy, Upload, Users } from "lucide-react";
 import { useState, type FormEvent } from "react";
 import { toast } from "sonner";
 import { SiteNav } from "@/components/SiteNav";
@@ -29,7 +33,19 @@ const tabs = [
   { id: "omr", label: "OMR Auto-Grading", icon: FileCheck },
   { id: "upload", label: "Upload Material", icon: Upload },
   { id: "notices", label: "Broadcast Notice", icon: Megaphone },
+  { id: "ledgers", label: "Registration Ledgers", icon: Users },
+  { id: "results", label: "Merit Leaderboard", icon: Trophy },
+  { id: "admissions", label: "Admissions Desk", icon: Users },
+  { id: "fees", label: "Fee Overview", icon: IndianRupee },
+  { id: "memos", label: "Memo Board", icon: StickyNote },
+  { id: "directory", label: "Contacts", icon: Contact },
+  { id: "plan", label: "Execution Plan", icon: ListChecks },
 ] as const;
+const deptTabs: Record<Dept, string[]> = {
+  Faculty: ["attendance", "marks", "upload", "notices", "memos", "directory", "plan"],
+  "Admin & Finance": ["admissions", "fees", "notices", "memos", "directory", "plan"],
+  "Exam Dept": ["tests", "omr", "downloads", "ledgers", "results", "notices", "memos", "directory", "plan"],
+};
 type TabId = (typeof tabs)[number]["id"];
 
 const students = ["Rahul Patil", "Sneha Kale", "Omkar Shinde", "Priya Joshi", "Aarav More", "Tanvi Gaikwad"];
@@ -38,12 +54,13 @@ const subjects = ["Physics", "Chemistry", "Maths"];
 const input = "w-full rounded-xl border border-input bg-secondary/50 px-3 py-2 text-sm outline-none focus:border-primary";
 
 function TeacherPortal() {
-  const { addNotice, addMaterial, notices, materials } = usePortal();
+  const { addNotice, addMaterial, notices, materials, applications } = usePortal();
   const [tab, setTab] = useState<TabId>("attendance");
+  const [dept, setDept] = useState<Dept>("Faculty");
   const [present, setPresent] = useState<Record<string, boolean>>(Object.fromEntries(students.map((s) => [s, true])));
   const [marks, setMarks] = useState<Record<string, string>>({});
   const [mat, setMat] = useState({ title: "", subject: "Physics", track: "JEE", topic: "" });
-  const [notice, setNotice] = useState({ title: "", body: "", audience: "All" });
+  const [notice, setNotice] = useState({ title: "", body: "", audience: "All", priority: "Routine" as "Official Circular" | "Urgent" | "Routine" });
 
   function saveMaterial(e: FormEvent) {
     e.preventDefault();
@@ -56,8 +73,8 @@ function TeacherPortal() {
   function sendNotice(e: FormEvent) {
     e.preventDefault();
     if (!notice.title.trim() || !notice.body.trim()) { toast.error("Fill in title and message"); return; }
-    addNotice(notice);
-    setNotice({ title: "", body: "", audience: "All" });
+    addNotice({ ...notice, dept });
+    setNotice({ title: "", body: "", audience: "All", priority: "Routine" });
     toast.success("Notice sent to student and parent portals");
   }
 
@@ -69,7 +86,7 @@ function TeacherPortal() {
         <p className="text-sm text-muted-foreground">JEE Excel Batch A1 · 6 students shown (demo)</p>
         <button
           onClick={() => {
-            addNotice({ title: "Mock exam registration has started", body: "Register and book your slot for JEE Main, MHT-CET and NEET mocks on the Exams page.", audience: "All" });
+            addNotice({ title: "Mock exam registration has started", body: "Register and book your slot for JEE Main, MHT-CET and NEET mocks on the Exams page.", audience: "All", dept: "Exam Dept", priority: "Official Circular" });
             toast.success("Registration notice broadcast");
           }}
           className="neon-surface mt-4 inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold"
@@ -77,8 +94,15 @@ function TeacherPortal() {
           <Megaphone className="size-4" /> Announce mock exam registration
         </button>
 
-        <div className="mt-6 flex gap-2 overflow-x-auto pb-2">
-          {tabs.map((t) => (
+        <div className="mt-6 flex flex-wrap gap-2">
+          {(Object.keys(deptTabs) as Dept[]).map((d) => (
+            <button key={d} onClick={() => { setDept(d); setTab(deptTabs[d][0] as TabId); }} className={`rounded-2xl px-5 py-2.5 text-sm font-bold ${dept === d ? "neon-surface" : "glass text-muted-foreground"}`}>
+              {d === "Exam Dept" ? "Exam Department" : d === "Faculty" ? "Faculty Department" : "Admin & Finance"}
+            </button>
+          ))}
+        </div>
+        <div className="mt-4 flex gap-2 overflow-x-auto pb-2">
+          {tabs.filter((t) => deptTabs[dept].includes(t.id)).map((t) => (
             <button
               key={t.id}
               onClick={() => setTab(t.id)}
@@ -165,6 +189,19 @@ function TeacherPortal() {
             {tab === "tests" && <TestBuilder />}
 
             {tab === "downloads" && <ExamDownloads />}
+            {tab === "ledgers" && <RegistrationLedgers />}
+            {tab === "results" && <MasterResultsLedger />}
+            {tab === "admissions" && <RegistrationLedgers showActions />}
+            {tab === "memos" && <MemoBoard from={dept} />}
+            {tab === "directory" && <ContactDirectory />}
+            {tab === "plan" && <ExecutionPlan />}
+            {tab === "fees" && (
+              <div className="grid gap-3 sm:grid-cols-4">
+                {[["Collected (Oct)", "₹4,85,000"], ["Pending dues", "₹1,12,500"], ["Students with dues", "18"], ["Admissions this month", String(applications.filter((a) => a.status === "Admitted").length)]].map(([l, v]) => (
+                  <div key={l} className="rounded-2xl bg-secondary/40 p-4"><p className="text-xs uppercase tracking-widest text-muted-foreground">{l}</p><p className="mt-1 font-display text-2xl font-bold">{v}</p></div>
+                ))}
+              </div>
+            )}
 
             {tab === "upload" && (
               <div className="grid gap-6 lg:grid-cols-2">
@@ -199,13 +236,17 @@ function TeacherPortal() {
                   <select className={input} value={notice.audience} onChange={(e) => setNotice({ ...notice, audience: e.target.value })}>
                     {["All", "Students", "Parents"].map((s) => <option key={s}>{s}</option>)}
                   </select>
+                  <select className={input} value={notice.priority} onChange={(e) => setNotice({ ...notice, priority: e.target.value as typeof notice.priority })}>
+                    {["Routine", "Official Circular", "Urgent"].map((s) => <option key={s}>{s}</option>)}
+                  </select>
+                  <p className="text-xs text-muted-foreground">Sent as [{dept}]</p>
                   <button className="neon-surface rounded-full px-5 py-2.5 text-sm font-semibold">Broadcast</button>
                 </form>
                 <div className="space-y-2">
                   {notices.map((n) => (
                     <div key={n.id} className="rounded-2xl bg-secondary/40 px-4 py-3">
                       <p className="text-sm font-semibold text-primary">{n.title}</p>
-                      <p className="text-xs text-muted-foreground">{n.audience} · {n.time}</p>
+                      <p className="text-xs text-muted-foreground">{n.dept ? `[${n.dept}] · ` : ""}{n.priority ? `${n.priority} · ` : ""}{n.audience} · {n.time}</p>
                     </div>
                   ))}
                 </div>
