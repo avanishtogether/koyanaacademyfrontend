@@ -65,7 +65,9 @@ export function PortalProvider({ children }: { children: ReactNode }) {
   const [materials, setMaterials] = useState(seedMaterials);
   const [exams, setExams] = useState(seedExams);
   const [registrations, setRegistrations] = useState<Registration[]>([]);
-  const [results, setResults] = useState<ExamResult[]>([]);
+  const [results, setResults] = useState<ExamResult[]>(seedResults);
+  const [applications, setApps] = useState<Application[]>(seedApps);
+  const [memos, setMemos] = useState<Memo[]>(seedMemos);
 
   function register(r: Omit<Registration, "id" | "hallTicket">) {
     const reg: Registration = {
@@ -97,7 +99,13 @@ export function PortalProvider({ children }: { children: ReactNode }) {
         addExam: (e) => setExams((l) => [e, ...l.filter((x) => x.id !== e.id)]),
         updateExam: (id, patch) => setExams((l) => l.map((x) => (x.id === id ? { ...x, ...patch } : x))),
         results,
-        addResult: (r) => setResults((l) => [...l.filter((x) => x.examId !== r.examId), r]),
+        addResult: (r) => setResults((l) => [...l.filter((x) => !(x.examId === r.examId && x.name === r.name)), r]),
+        applications,
+        addApplication: (a) => setApps((l) => [{ ...a, id: crypto.randomUUID(), status: "Submitted", date: new Date().toISOString().slice(0, 10) }, ...l]),
+        setApplicationStatus: (id, status) => setApps((l) => l.map((x) => (x.id === id ? { ...x, status } : x))),
+        memos,
+        addMemo: (m) => setMemos((l) => [{ ...m, id: crypto.randomUUID(), status: "Open", time: "Just now" }, ...l]),
+        setMemoStatus: (id, status) => setMemos((l) => l.map((x) => (x.id === id ? { ...x, status } : x))),
       }}
     >
       {children}
