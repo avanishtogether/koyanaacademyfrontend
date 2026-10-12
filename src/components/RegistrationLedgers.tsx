@@ -28,7 +28,7 @@ export function RegistrationLedgers({ showActions = false }: { showActions?: boo
 
   function exportCsv() {
     if (comp === "mocks") {
-      downloadCsv("mock-registrations", [["Hall Ticket", "Name", "Academy ID", "Class", "Exam", "College", "Email"], ...mocks.map((r) => [r.hallTicket, r.name, r.studentId, r.cls, exams.find((e) => e.id === r.examId)?.title ?? r.examId, r.college, r.email])]);
+      downloadCsv("mock-registrations", [["Hall Ticket", "Name", "Academy ID", "Class", "Exam", "College", "Email"], ...mocks.map((r) => [r.hallTicket, r.name, r.studentId, r.cls, exams.find((e) => e.id === r.examId)?.name ?? r.examId, r.college, r.email])]);
     } else {
       downloadCsv(`${comp}-applications`, [["Roll", "Name", "School", "Class", "Taluka", "Parent Phone", "Slot", "Status", "Date"], ...apps.map((a) => [a.roll, a.name, a.school, a.cls, a.taluka, a.phone, a.slot, a.status, a.date])]);
     }

@@ -7,7 +7,7 @@ export function MasterResultsLedger() {
   const { results, exams } = usePortal();
   const examIds = [...new Set(results.map((r) => r.examId))];
   const [examId, setExamId] = useState(examIds[0] ?? "");
-  const title = (id: string) => exams.find((e) => e.id === id)?.title ?? (id === "seed-jee-mock-3" ? "JEE Main Mock 3" : id);
+  const title = (id: string) => exams.find((e) => e.id === id)?.name ?? (id === "seed-jee-mock-3" ? "JEE Main Mock 3" : id);
 
   const rows = useMemo(() => results.filter((r) => r.examId === examId).sort((a, b) => b.score - a.score), [results, examId]);
   const subs = [...new Set(rows.flatMap((r) => Object.keys(r.subjects ?? {})))];
