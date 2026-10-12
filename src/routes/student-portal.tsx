@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianGrid } from "recharts";
 import { SiteNav } from "@/components/SiteNav";
+import { NoticeBadges } from "@/components/StaffHub";
 import { Counter } from "@/components/motion";
 import { usePortal } from "@/lib/use-portal";
 import { celebrate } from "@/lib/celebrate";
@@ -129,7 +130,7 @@ function StudentPortal() {
                   <div className="mt-4 space-y-3">
                     {notices.slice(0, 4).map((n) => (
                       <div key={n.id} className="rounded-2xl bg-secondary/40 px-4 py-3">
-                        <p className="text-sm font-semibold text-primary">{n.title}</p>
+                        <p className="text-sm font-semibold text-primary"><NoticeBadges dept={n.dept} priority={n.priority} />{n.title}</p>
                         <p className="text-xs text-muted-foreground">{n.body} · {n.time}</p>
                       </div>
                     ))}
