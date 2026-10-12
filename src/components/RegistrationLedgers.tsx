@@ -28,7 +28,7 @@ export function RegistrationLedgers({ showActions = false }: { showActions?: boo
 
   function exportCsv() {
     if (comp === "mocks") {
-      downloadCsv("mock-registrations", [["Hall Ticket", "Name", "Academy ID", "Class", "Exam", "College", "Email"], ...mocks.map((r) => [r.hallTicket, r.name, r.studentId, r.cls, exams.find((e) => e.id === r.examId)?.title ?? r.examId, r.college, r.email])]);
+      downloadCsv("mock-registrations", [["Hall Ticket", "Name", "Academy ID", "Class", "Exam", "College", "Email"], ...mocks.map((r) => [r.hallTicket, r.name, r.studentId, r.cls, exams.find((e) => e.id === r.examId)?.name ?? r.examId, r.college, r.email])]);
     } else {
       downloadCsv(`${comp}-applications`, [["Roll", "Name", "School", "Class", "Taluka", "Parent Phone", "Slot", "Status", "Date"], ...apps.map((a) => [a.roll, a.name, a.school, a.cls, a.taluka, a.phone, a.slot, a.status, a.date])]);
     }
@@ -62,7 +62,7 @@ export function RegistrationLedgers({ showActions = false }: { showActions?: boo
               <thead><tr className="text-left text-xs uppercase tracking-widest text-muted-foreground"><th className="py-2 pr-3">Hall ticket</th><th>Name</th><th>Academy ID</th><th>Class</th><th>Exam</th></tr></thead>
               <tbody>
                 {mocks.map((r) => (
-                  <tr key={r.id} className="border-t border-border"><td className="py-2 pr-3 font-mono text-xs">{r.hallTicket}</td><td>{r.name}</td><td>{r.studentId}</td><td>{r.cls}</td><td className="text-xs">{exams.find((e) => e.id === r.examId)?.title}</td></tr>
+                  <tr key={r.id} className="border-t border-border"><td className="py-2 pr-3 font-mono text-xs">{r.hallTicket}</td><td>{r.name}</td><td>{r.studentId}</td><td>{r.cls}</td><td className="text-xs">{exams.find((e) => e.id === r.examId)?.name}</td></tr>
                 ))}
                 {!mocks.length && <tr><td colSpan={5} className="py-6 text-center text-xs text-muted-foreground">No mock registrations yet.</td></tr>}
               </tbody>

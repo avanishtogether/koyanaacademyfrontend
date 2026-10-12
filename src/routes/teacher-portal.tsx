@@ -4,10 +4,11 @@ import { TestBuilder } from "@/components/TestBuilder";
 import { ExamDownloads } from "@/components/ExamDownloads";
 import { RegistrationLedgers } from "@/components/RegistrationLedgers";
 import { MasterResultsLedger } from "@/components/MasterResultsLedger";
+import { QuestionBank } from "@/components/QuestionBank";
 import { ContactDirectory, ExecutionPlan, MemoBoard } from "@/components/StaffHub";
 import type { Dept } from "@/lib/portal-store";
 import { AnimatePresence, motion } from "framer-motion";
-import { CalendarCheck, ClipboardList, Contact, Download, FileCheck, IndianRupee, ListChecks, Megaphone, StickyNote, Table2, Trophy, Upload, Users } from "lucide-react";
+import { Library, CalendarCheck, ClipboardList, Contact, Download, FileCheck, IndianRupee, ListChecks, Megaphone, StickyNote, Table2, Trophy, Upload, Users } from "lucide-react";
 import { useState, type FormEvent } from "react";
 import { toast } from "sonner";
 import { SiteNav } from "@/components/SiteNav";
@@ -40,11 +41,12 @@ const tabs = [
   { id: "memos", label: "Memo Board", icon: StickyNote },
   { id: "directory", label: "Contacts", icon: Contact },
   { id: "plan", label: "Execution Plan", icon: ListChecks },
+  { id: "qbank", label: "Question Bank", icon: Library },
 ] as const;
 const deptTabs: Record<Dept, string[]> = {
-  Faculty: ["attendance", "marks", "upload", "notices", "memos", "directory", "plan"],
+  Faculty: ["qbank", "attendance", "marks", "upload", "notices", "memos", "directory", "plan"],
   "Admin & Finance": ["admissions", "fees", "notices", "memos", "directory", "plan"],
-  "Exam Dept": ["tests", "omr", "downloads", "ledgers", "results", "notices", "memos", "directory", "plan"],
+  "Exam Dept": ["qbank", "tests", "omr", "downloads", "ledgers", "results", "notices", "memos", "directory", "plan"],
 };
 type TabId = (typeof tabs)[number]["id"];
 
@@ -195,6 +197,7 @@ function TeacherPortal() {
             {tab === "memos" && <MemoBoard from={dept} />}
             {tab === "directory" && <ContactDirectory />}
             {tab === "plan" && <ExecutionPlan />}
+            {tab === "qbank" && <QuestionBank />}
             {tab === "fees" && (
               <div className="grid gap-3 sm:grid-cols-4">
                 {[["Collected (Oct)", "₹4,85,000"], ["Pending dues", "₹1,12,500"], ["Students with dues", "18"], ["Admissions this month", String(applications.filter((a) => a.status === "Admitted").length)]].map(([l, v]) => (
