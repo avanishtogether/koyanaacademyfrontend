@@ -106,10 +106,10 @@ export type BankQuestion = {
   text: string; // supports $inline$ and $$block$$ LaTeX
   options: string[];
   answer: number; // MCQ index
-  numericAnswer?: string;
+  numericAnswer?: string | undefined;
   solution: string;
-  assetUrl?: string;
-  assetName?: string;
+  assetUrl?: string | undefined;
+  assetName?: string | undefined;
   createdAt: number;
 };
 

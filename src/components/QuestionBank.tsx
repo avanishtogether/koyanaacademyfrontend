@@ -77,8 +77,8 @@ function CascadeSelects({ t, set, withAll, hide = [] }: { t: Tax | FilterTax; se
 type FilterTax = { board: string; cls: string; subject: string; chapter: string; topic: string; category: string };
 
 function uploadToCloudinary(file: File): Promise<{ url: string; demo: boolean }> {
-  const cloud = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME as string | undefined;
-  const preset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET as string | undefined;
+  const cloud = import.meta.env["VITE_CLOUDINARY_CLOUD_NAME"] as string | undefined;
+  const preset = import.meta.env["VITE_CLOUDINARY_UPLOAD_PRESET"] as string | undefined;
   if (!cloud || !preset) return new Promise((r) => setTimeout(() => r({ url: URL.createObjectURL(file), demo: true }), 700));
   const fd = new FormData();
   fd.append("file", file);
@@ -105,11 +105,11 @@ function Studio({ editing, onSave, onCancel }: { editing: BankQuestion | null; o
   const [uploading, setUploading] = useState(false);
   const [drag, setDrag] = useState(false);
 
-  async function handleFiles(files: FileList | null) {
+  async function handleFiles(files: FileList | null): Promise<void> {
     const f = files?.[0];
     if (!f) return;
-    if (!/pdf|image/.test(f.type)) return toast.error("Only PDFs and images are supported");
-    if (f.size > 20 * 1024 * 1024) return toast.error("File too large (max 20 MB)");
+    if (!/pdf|image/.test(f.type)) return void toast.error("Only PDFs and images are supported");
+    if (f.size > 20 * 1024 * 1024) return void toast.error("File too large (max 20 MB)");
     setUploading(true);
     try {
       const r = await uploadToCloudinary(f);
@@ -120,13 +120,13 @@ function Studio({ editing, onSave, onCancel }: { editing: BankQuestion | null; o
     finally { setUploading(false); }
   }
 
-  function save() {
-    if (!text.trim()) return toast.error("Write the question text");
-    if (!t.chapter) return toast.error("Choose a chapter");
+  function save(): void {
+    if (!text.trim()) return void toast.error("Write the question text");
+    if (!t.chapter) return void toast.error("Choose a chapter");
     if (type === "MCQ") {
-      if (options.length < 2 || options.some((o) => !o.trim())) return toast.error("Fill every option (at least 2)");
+      if (options.length < 2 || options.some((o) => !o.trim())) return void toast.error("Fill every option (at least 2)");
     }
-    if (type === "Numerical" && !numericAnswer.trim()) return toast.error("Give the numerical answer");
+    if (type === "Numerical" && !numericAnswer.trim()) return void toast.error("Give the numerical answer");
     onSave({
       id: editing?.id ?? crypto.randomUUID(), createdAt: editing?.createdAt ?? Date.now(),
       ...t, type, difficulty, marks, negative, text,
