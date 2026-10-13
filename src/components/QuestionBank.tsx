@@ -1,6 +1,6 @@
 import katex from "katex";
 import "katex/dist/katex.min.css";
-import { BookOpen, Database, FileKey2, FilePlus2, Loader2, Pencil, Printer, Search, Trash2, UploadCloud, Wand2, X } from "lucide-react";
+import { BookOpen, Database, Download, FileKey2, FilePlus2, Loader2, Pencil, Plus, Printer, Rocket, Search, Sparkles, Trash2, UploadCloud, Wand2, X } from "lucide-react";
 import { useEffect, useMemo, useState, type DragEvent } from "react";
 import { toast } from "sonner";
 import {
@@ -8,6 +8,10 @@ import {
   type BankQuestion, type Board, type Cls, type Diff, type ExamCat, type QType,
 } from "@/data/question-bank";
 import { academyInfo as A } from "@/lib/academy-info";
+import { usePortal } from "@/lib/use-portal";
+import { celebrate } from "@/lib/celebrate";
+import { bankToCsv, csvTemplate, csvToBank, saveText } from "@/lib/qb-csv";
+import { AiPdfImport } from "./AiPdfImport";
 
 const KEY = "koyana-question-bank-v1";
 const input = "w-full rounded-xl border border-input bg-secondary/50 px-3 py-2 text-sm outline-none focus:border-primary";
@@ -230,7 +234,7 @@ function Studio({ editing, onSave, onCancel }: { editing: BankQuestion | null; o
 
 // ───────────────────────── Explorer ─────────────────────────
 const emptyF: FilterTax = { board: "", cls: "", subject: "", chapter: "", topic: "", category: "" };
-function Explorer({ bank, onEdit, onDelete }: { bank: BankQuestion[]; onEdit: (q: BankQuestion) => void; onDelete: (id: string) => void }) {
+function Explorer({ bank, onEdit, onDelete, onImport }: { bank: BankQuestion[]; onEdit: (q: BankQuestion) => void; onDelete: (id: string) => void; onImport: (qs: BankQuestion[]) => void }) {
   const [f, setF] = useState<FilterTax>(emptyF);
   const [q, setQ] = useState("");
   const [diff, setDiff] = useState("");
@@ -250,8 +254,26 @@ function Explorer({ bank, onEdit, onDelete }: { bank: BankQuestion[]; onEdit: (q
     (!q || `${x.text} ${x.chapter} ${x.topic}`.toLowerCase().includes(q.toLowerCase())),
   ).sort((a, b) => b.createdAt - a.createdAt), [bank, f, q, diff, type]);
 
+  function importCsv(f?: File | null) {
+    if (!f) return;
+    f.text().then((txt) => {
+      const { rows: got, errors } = csvToBank(txt);
+      if (got.length) { onImport(got); toast.success(`${got.length} questions imported`); }
+      if (errors.length) toast.error(`${errors.length} rows skipped`, { description: errors.slice(0, 5).join("\n") + (errors.length > 5 ? "\n…" : "") });
+      if (!got.length && !errors.length) toast.error("The file has no question rows");
+    });
+  }
   return (
     <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        <button onClick={() => saveText("koyana-question-template.csv", csvTemplate())} className="glass inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs"><Download className="size-3.5" /> CSV template</button>
+        <label className="glass inline-flex cursor-pointer items-center gap-1.5 rounded-full px-3 py-1.5 text-xs"
+          onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); importCsv(e.dataTransfer.files[0]); }}>
+          <UploadCloud className="size-3.5" /> Import CSV (click or drop)
+          <input type="file" accept=".csv,text/csv" className="hidden" onChange={(e) => { importCsv(e.target.files?.[0]); e.target.value = ""; }} />
+        </label>
+        <button onClick={() => saveText(`koyana-question-bank-${rows.length}.csv`, bankToCsv(rows))} className="neon-surface inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold"><Download className="size-3.5" /> Export {rows.length} to CSV</button>
+      </div>
       <div className="grid gap-3 sm:grid-cols-4">
         {[["Total questions", bank.length], ["Showing", rows.length], ["MCQs", bank.filter((x) => x.type === "MCQ").length], ["Subjects", new Set(bank.map((x) => x.subject)).size]].map(([k, v]) => (
           <div key={k as string} className="rounded-2xl bg-secondary/40 p-3"><p className="text-xs text-muted-foreground">{k}</p><p className="font-display text-2xl font-bold">{v}</p></div>
@@ -297,19 +319,26 @@ function Explorer({ bank, onEdit, onDelete }: { bank: BankQuestion[]; onEdit: (q
 }
 
 // ───────────────────────── Paper Builder ─────────────────────────
-function paperHtml(title: string, meta: string, qs: BankQuestion[], key: boolean) {
-  const total = qs.reduce((s, q) => s + q.marks, 0);
-  const body = qs.map((q, i) => `<div class="q"><span class="m">${q.marks}${q.negative ? ` / ${q.negative}` : ""}</span><b>Q${i + 1}.</b> ${texHtml(q.text)}
-${q.assetUrl ? `<div><a href="${q.assetUrl}">[Attached figure/document]</a></div>` : ""}
+type PaperSection = { subject: string; qs: BankQuestion[] };
+const isImg = (q: BankQuestion) => !!q.assetUrl && (/\.(png|jpe?g|webp|svg|gif)(\?|#|$)/i.test(q.assetUrl) || /\.(png|jpe?g|webp|svg|gif)$/i.test(q.assetName ?? "") || q.assetUrl.startsWith("data:image"));
+function paperHtml(title: string, meta: string, sections: PaperSection[], key: boolean) {
+  const all = sections.flatMap((s) => s.qs);
+  const total = all.reduce((s, q) => s + q.marks, 0);
+  let n = 0;
+  const qHtml = (q: BankQuestion) => { n++; return `<div class="q"><span class="m">${q.marks}${q.negative ? ` / ${q.negative}` : ""}</span><b>Q${n}.</b> ${texHtml(q.text)}
+${q.assetUrl ? (isImg(q) ? `<figure><img src="${q.assetUrl}" alt="Figure for Q${n}"></figure>` : `<div><a href="${q.assetUrl}">[Attached document]</a></div>`) : ""}
 ${q.type === "MCQ" ? `<ol type="A">${q.options.map((o, j) => `<li${key && j === q.answer ? ' class="ok"' : ""}>${texHtml(o)}</li>`).join("")}</ol>` : key ? "" : `<div class="lines" style="height:${q.type === "Long Answer" ? 120 : q.type === "Short Answer" ? 60 : 30}px"></div>`}
-${key ? `<p class="ans"><b>Answer:</b> ${q.type === "MCQ" ? L[q.answer] : q.numericAnswer ? texHtml(q.numericAnswer) : "See solution"}${q.solution ? `<br><b>Solution:</b> ${texHtml(q.solution)}` : ""}</p>` : ""}</div>`).join("");
+${key ? `<p class="ans"><b>Answer:</b> ${q.type === "MCQ" ? L[q.answer] : q.numericAnswer ? texHtml(q.numericAnswer) : "See solution"}${q.solution ? `<br><b>Solution:</b> ${texHtml(q.solution)}` : ""}</p>` : ""}</div>`; };
+  const multi = sections.length > 1;
+  const body = sections.map((s, i) => `${multi ? `<h3 class="sec">Section ${i + 1}: ${s.subject} <small>(${s.qs.length} questions · ${s.qs.reduce((a, q) => a + q.marks, 0)} marks)</small></h3>` : ""}${s.qs.map(qHtml).join("")}`).join("");
   return `<!doctype html><html><head><meta charset="utf-8"><title>${title}</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
 <style>body{font-family:Georgia,serif;max-width:800px;margin:24px auto;padding:0 16px;color:#111}header{text-align:center;border-bottom:2px solid #111;padding-bottom:10px;margin-bottom:12px}
 h1{margin:0;font-size:22px}.q{margin:14px 0;page-break-inside:avoid}.m{float:right;font-size:12px;border:1px solid #111;padding:1px 6px}.ok{font-weight:bold;color:#0a6}
+.sec{border-bottom:1px solid #111;padding-bottom:4px;margin-top:24px}figure{margin:8px 0}figure img{max-width:100%;max-height:320px;border:1px solid #ccc;border-radius:4px}
 .ans{background:#f3f3f3;padding:6px 8px;font-size:14px}.lines{border-bottom:1px dashed #999}@media print{button{display:none}}</style></head><body>
 <button onclick="print()">Print / Save as PDF</button><header><h1>${A.name}</h1><small>${A.college} · ${A.address}</small>
-<h2 style="margin:8px 0 0;font-size:18px">${title}${key ? " — Answer Key" : ""}</h2><small>${meta} · Questions: ${qs.length} · Maximum marks: ${total}</small></header>
+<h2 style="margin:8px 0 0;font-size:18px">${title}${key ? " — Answer Key" : ""}</h2><small>${meta} · Questions: ${all.length} · Maximum marks: ${total}</small></header>
 ${key ? "" : "<p><b>Instructions:</b> Attempt all questions. Marks (and negative marks, if any) are shown beside each question.</p>"}${body}</body></html>`;
 }
 function openHtml(html: string) {
@@ -319,87 +348,164 @@ function openHtml(html: string) {
   setTimeout(() => URL.revokeObjectURL(url), 60000);
 }
 
+type Section = { id: string; subject: string; chapters: string[]; type: QType | "Any"; count: number; diff: Diff | "Mixed" };
+const TRACKS = { "JEE": "JEE Main", "NEET": "NEET", "MHT-CET": "MHT-CET", "Foundation": "Custom" } as const;
+
+function PublishModal({ title, duration, sections, cls, onClose }: { title: string; duration: number; sections: PaperSection[]; cls: string; onClose: () => void }) {
+  const { addExam } = usePortal();
+  const [name, setName] = useState(title);
+  const [date, setDate] = useState("");
+  const [time, setTime] = useState("10:00");
+  const [dur, setDur] = useState(duration);
+  const [deadline, setDeadline] = useState("");
+  const [track, setTrack] = useState<keyof typeof TRACKS>("JEE");
+  const mcqs = sections.flatMap((s) => s.qs.filter((q) => q.type === "MCQ" && q.options.length >= 2).map((q) => ({ q, subject: s.subject })));
+  const skipped = sections.reduce((a, s) => a + s.qs.length, 0) - mcqs.length;
+  function publish() {
+    if (!name.trim() || !date || !deadline) return void toast.error("Fill exam name, exam date and registration deadline");
+    if (!mcqs.length) return void toast.error("Online exams need MCQ questions — this paper has none");
+    const fmt = (d: string) => new Date(d + "T00:00").toLocaleDateString("en-IN", { day: "numeric", month: "short" });
+    const [hh, mm] = time.split(":").map(Number);
+    const t12 = `${((hh! + 11) % 12) + 1}:${String(mm).padStart(2, "0")} ${hh! >= 12 ? "PM" : "AM"}`;
+    const id = `qb-${Date.now().toString(36)}`;
+    addExam({
+      id, name: name.trim(), pattern: TRACKS[track], durationMin: dur,
+      description: `Class ${cls} · ${track} · ${sections.map((s) => `${s.subject} (${s.qs.length})`).join(", ")} · from Question Bank`,
+      marking: { correct: 4, wrong: -1 }, regCloses: fmt(deadline), regDeadline: new Date(deadline + "T23:59").toISOString(),
+      slots: [{ id: "s1", date: fmt(date), time: t12, capacity: 120, booked: 0 }],
+      questions: mcqs.map(({ q, subject }, i) => ({
+        id: `${id}-${i + 1}`, subject, text: q.text, options: q.options, answer: q.answer,
+        marks: { correct: q.marks, wrong: q.negative }, difficulty: q.difficulty === "Medium" ? "Moderate" : q.difficulty,
+      })),
+    });
+    celebrate();
+    toast.success("Published! Students can now book a slot on the Mock Exam page.");
+    onClose();
+  }
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-background/70 p-4 backdrop-blur" onClick={onClose}>
+      <div className="glass w-full max-w-lg space-y-3 rounded-3xl p-6" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between"><h3 className="font-display text-lg font-semibold">Publish as online exam</h3><button onClick={onClose} aria-label="Close"><X className="size-4" /></button></div>
+        <label className="block text-xs text-muted-foreground">Exam name<input className={`${input} mt-1`} value={name} onChange={(e) => setName(e.target.value)} /></label>
+        <div className="grid grid-cols-2 gap-3">
+          <label className="text-xs text-muted-foreground">Exam date<input type="date" className={`${input} mt-1`} value={date} onChange={(e) => setDate(e.target.value)} /></label>
+          <label className="text-xs text-muted-foreground">Start time<input type="time" className={`${input} mt-1`} value={time} onChange={(e) => setTime(e.target.value)} /></label>
+          <label className="text-xs text-muted-foreground">Duration (min)<input type="number" min={5} className={`${input} mt-1`} value={dur} onChange={(e) => setDur(Number(e.target.value) || 60)} /></label>
+          <label className="text-xs text-muted-foreground">Registration closes<input type="date" className={`${input} mt-1`} value={deadline} onChange={(e) => setDeadline(e.target.value)} /></label>
+          <label className="col-span-2 text-xs text-muted-foreground">Target track<select className={`${input} mt-1`} value={track} onChange={(e) => setTrack(e.target.value as keyof typeof TRACKS)}>{Object.keys(TRACKS).map((k) => <option key={k}>{k}</option>)}</select></label>
+        </div>
+        <p className="text-xs text-muted-foreground">Class {cls} · {mcqs.length} MCQs go online with their own marks.{skipped > 0 && ` ${skipped} non-MCQ questions stay in the printed paper only.`}</p>
+        <button onClick={publish} className="neon-surface w-full rounded-full px-5 py-2.5 text-sm font-semibold">Publish to Mock Exams</button>
+      </div>
+    </div>
+  );
+}
+
 function Builder({ bank }: { bank: BankQuestion[] }) {
   const [t, set] = useCascade();
-  const [chapters, setChapters] = useState<string[]>([]);
-  const [type, setType] = useState<QType | "Any">("MCQ");
-  const [count, setCount] = useState(10);
-  const [diff, setDiff] = useState<Diff | "Mixed">("Mixed");
+  const subs = subjectsFor(t.board, t.cls);
+  const mk = (subject: string): Section => ({ id: crypto.randomUUID(), subject, chapters: [], type: "MCQ", count: 10, diff: "Mixed" });
+  const [sections, setSections] = useState<Section[]>(() => [{ id: "s0", subject: subs[0]!, chapters: [], type: "MCQ", count: 10, diff: "Mixed" }]);
   const [title, setTitle] = useState("Unit Test");
   const [duration, setDuration] = useState(60);
-  const [paper, setPaper] = useState<BankQuestion[] | null>(null);
+  const [paper, setPaper] = useState<PaperSection[] | null>(null);
   const [busy, setBusy] = useState(false);
-  const allCh = chaptersFor(t.board, t.cls, t.subject);
-  useEffect(() => setChapters([]), [t.board, t.cls, t.subject]);
-
-  const pool = bank.filter((q) => q.board === t.board && q.cls === t.cls && q.subject === t.subject &&
-    (chapters.length === 0 || chapters.includes(q.chapter)) && (type === "Any" || q.type === type));
+  const [publishing, setPublishing] = useState(false);
+  useEffect(() => {
+    const s = subjectsFor(t.board, t.cls);
+    setSections((l) => l.map((x) => (s.includes(x.subject) ? x : { ...x, subject: s[0]!, chapters: [] })));
+  }, [t.board, t.cls]);
+  const upd = (id: string, p: Partial<Section>) => setSections((l) => l.map((s) => (s.id === id ? { ...s, ...p } : s)));
+  const poolFor = (s: Section) => bank.filter((q) => q.board === t.board && q.cls === t.cls && q.subject === s.subject &&
+    (s.chapters.length === 0 || s.chapters.includes(q.chapter)) && (s.type === "Any" || q.type === s.type));
 
   function generate() {
     setBusy(true);
     setTimeout(() => {
-      const out = pickQuestions(pool, count, diff, Date.now() % 100000);
-      setPaper(out);
+      const seed = Date.now() % 100000;
+      const out = sections.map((s, i) => ({ subject: s.subject, qs: pickQuestions(poolFor(s), s.count, s.diff, seed + i), want: s.count }));
+      setPaper(out.filter((s) => s.qs.length).map(({ subject, qs }) => ({ subject, qs })));
       setBusy(false);
-      if (out.length === 0) toast.error("No questions match. Add some in the studio or widen the criteria.");
-      else if (out.length < count) toast.warning(`Only ${out.length} of ${count} matching questions found`);
-      else toast.success(`Paper ready with ${out.length} questions`);
+      const got = out.reduce((a, s) => a + s.qs.length, 0), want = out.reduce((a, s) => a + s.want, 0);
+      if (got === 0) toast.error("No questions match. Add some in the studio or widen the criteria.");
+      else if (got < want) toast.warning(`Only ${got} of ${want} questions found (${out.filter((s) => s.qs.length < s.want).map((s) => s.subject).join(", ")} short)`);
+      else toast.success(`Paper ready with ${got} questions`);
     }, 400);
   }
-  const meta = `${t.board} · Class ${t.cls} · ${t.subject} · Duration: ${duration} min`;
+  const meta = `${t.board} · Class ${t.cls} · ${[...new Set(sections.map((s) => s.subject))].join(" + ")} · Duration: ${duration} min`;
+  const flat = paper?.flatMap((s) => s.qs) ?? [];
 
   return (
     <div className="space-y-4">
       <h3 className="font-display text-lg font-semibold">Question paper builder</h3>
-      <CascadeSelects t={t} set={set} hide={["chapter", "topic", "category"]} />
-      <div>
-        <p className="mb-1 text-xs text-muted-foreground">Chapters (none selected = all)</p>
-        <div className="flex flex-wrap gap-2">
-          {allCh.map((c) => {
-            const on = chapters.includes(c);
-            return <button key={c} onClick={() => setChapters((l) => (on ? l.filter((x) => x !== c) : [...l, c]))} className={`rounded-full px-3 py-1 text-xs ${on ? "neon-surface" : "glass text-muted-foreground"}`}>{c}</button>;
-          })}
-        </div>
-      </div>
-      <div className="grid gap-3 sm:grid-cols-5">
+      <CascadeSelects t={t} set={set} hide={["subject", "chapter", "topic", "category"]} />
+      <div className="grid gap-3 sm:grid-cols-3">
         <label className="text-xs text-muted-foreground sm:col-span-2">Paper title<input className={`${input} mt-1`} value={title} onChange={(e) => setTitle(e.target.value)} /></label>
-        <label className="text-xs text-muted-foreground">Type<select className={`${input} mt-1`} value={type} onChange={(e) => setType(e.target.value as QType)}><option>Any</option>{QTYPES.map((q) => <option key={q}>{q}</option>)}</select></label>
-        <label className="text-xs text-muted-foreground">How many<input type="number" min={1} max={200} className={`${input} mt-1`} value={count} onChange={(e) => setCount(Math.max(1, Number(e.target.value) || 1))} /></label>
-        <label className="text-xs text-muted-foreground">Difficulty<select className={`${input} mt-1`} value={diff} onChange={(e) => setDiff(e.target.value as Diff)}><option>Mixed</option>{DIFFS.map((q) => <option key={q}>{q}</option>)}</select></label>
         <label className="text-xs text-muted-foreground">Duration (min)<input type="number" min={5} className={`${input} mt-1`} value={duration} onChange={(e) => setDuration(Number(e.target.value) || 60)} /></label>
       </div>
+      {sections.map((s, i) => {
+        const allCh = chaptersFor(t.board, t.cls, s.subject);
+        return (
+          <div key={s.id} className="space-y-3 rounded-2xl border border-border bg-secondary/20 p-4">
+            <div className="flex items-center justify-between"><p className="text-sm font-semibold">Section {i + 1}</p>
+              {sections.length > 1 && <button onClick={() => setSections((l) => l.filter((x) => x.id !== s.id))} className="glass rounded-full p-1.5" aria-label="Remove section"><Trash2 className="size-3.5" /></button>}
+            </div>
+            <div className="grid gap-3 sm:grid-cols-4">
+              <label className="text-xs text-muted-foreground">Subject<select className={`${input} mt-1`} value={s.subject} onChange={(e) => upd(s.id, { subject: e.target.value, chapters: [] })}>{subs.map((x) => <option key={x}>{x}</option>)}</select></label>
+              <label className="text-xs text-muted-foreground">Type<select className={`${input} mt-1`} value={s.type} onChange={(e) => upd(s.id, { type: e.target.value as QType })}><option>Any</option>{QTYPES.map((q) => <option key={q}>{q}</option>)}</select></label>
+              <label className="text-xs text-muted-foreground">How many<input type="number" min={1} max={200} className={`${input} mt-1`} value={s.count} onChange={(e) => upd(s.id, { count: Math.max(1, Number(e.target.value) || 1) })} /></label>
+              <label className="text-xs text-muted-foreground">Difficulty<select className={`${input} mt-1`} value={s.diff} onChange={(e) => upd(s.id, { diff: e.target.value as Diff })}><option>Mixed</option>{DIFFS.map((q) => <option key={q}>{q}</option>)}</select></label>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {allCh.map((c) => {
+                const on = s.chapters.includes(c);
+                return <button key={c} onClick={() => upd(s.id, { chapters: on ? s.chapters.filter((x) => x !== c) : [...s.chapters, c] })} className={`rounded-full px-3 py-1 text-xs ${on ? "neon-surface" : "glass text-muted-foreground"}`}>{c}</button>;
+              })}
+            </div>
+            <p className="text-xs text-muted-foreground">{poolFor(s).length} matching questions · no chapter selected = all chapters</p>
+          </div>
+        );
+      })}
       <div className="flex flex-wrap items-center gap-3">
+        <button onClick={() => setSections((l) => [...l, mk(subs.find((x) => !l.some((y) => y.subject === x)) ?? subs[0]!)])} className="glass inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-sm"><Plus className="size-4" /> Add subject section</button>
         <button onClick={generate} disabled={busy} className="neon-surface inline-flex items-center gap-2 rounded-full px-5 py-2 text-sm font-semibold">
           {busy ? <Loader2 className="size-4 animate-spin" /> : <Wand2 className="size-4" />} Generate paper
         </button>
-        <span className="text-xs text-muted-foreground">{pool.length} matching questions in the bank</span>
       </div>
 
-      {paper && paper.length > 0 && (
+      {paper && flat.length > 0 && (
         <div className="rounded-2xl border border-border bg-background/40 p-5">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <div><p className="font-display font-semibold">{title}</p><p className="text-xs text-muted-foreground">{meta} · {paper.length} questions · {paper.reduce((s, q) => s + q.marks, 0)} marks</p></div>
-            <div className="flex gap-2">
+            <div><p className="font-display font-semibold">{title}</p><p className="text-xs text-muted-foreground">{meta} · {flat.length} questions · {flat.reduce((s, q) => s + q.marks, 0)} marks</p></div>
+            <div className="flex flex-wrap gap-2">
               <button onClick={() => openHtml(paperHtml(title, meta, paper, false))} className="glass inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold"><Printer className="size-3.5" /> Print paper</button>
-              <button onClick={() => openHtml(paperHtml(title, meta, paper, true))} className="neon-surface inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold"><FileKey2 className="size-3.5" /> Answer key</button>
+              <button onClick={() => openHtml(paperHtml(title, meta, paper, true))} className="glass inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold"><FileKey2 className="size-3.5" /> Answer key</button>
+              <button onClick={() => setPublishing(true)} className="neon-surface inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold"><Rocket className="size-3.5" /> Publish as online exam</button>
             </div>
           </div>
-          <ol className="mt-4 space-y-3 text-sm">
-            {paper.map((q, i) => (
-              <li key={q.id} className="border-t border-border pt-3">
-                <div className="flex justify-between gap-2"><span><b>Q{i + 1}.</b> <Tex s={q.text} /></span><span className="shrink-0 text-xs text-muted-foreground">[{q.marks}] · {q.difficulty}</span></div>
-                {q.type === "MCQ" && <div className="mt-1 grid gap-1 pl-6 sm:grid-cols-2">{q.options.map((o, j) => <span key={j}>{L[j]}. <Tex s={o} /></span>)}</div>}
-              </li>
-            ))}
-          </ol>
+          {(() => { let n = 0; return paper.map((sec, si) => (
+            <div key={si} className="mt-4">
+              {paper.length > 1 && <p className="border-b border-border pb-1 text-sm font-semibold text-primary">Section {si + 1}: {sec.subject} · {sec.qs.length} Qs · {sec.qs.reduce((a, q) => a + q.marks, 0)} marks</p>}
+              <ol className="mt-2 space-y-3 text-sm">
+                {sec.qs.map((q) => { n++; return (
+                  <li key={q.id} className="border-t border-border pt-3 first:border-0">
+                    <div className="flex justify-between gap-2"><span><b>Q{n}.</b> <Tex s={q.text} /></span><span className="shrink-0 text-xs text-muted-foreground">[{q.marks}] · {q.difficulty}</span></div>
+                    {isImg(q) && <img src={q.assetUrl} alt={`Figure for question ${n}`} className="mt-2 max-h-48 rounded-lg border border-border" />}
+                    {q.type === "MCQ" && <div className="mt-1 grid gap-1 pl-6 sm:grid-cols-2">{q.options.map((o, j) => <span key={j}>{L[j]}. <Tex s={o} /></span>)}</div>}
+                  </li>
+                ); })}
+              </ol>
+            </div>
+          )); })()}
         </div>
       )}
+      {publishing && paper && <PublishModal title={title} duration={duration} sections={paper} cls={t.cls} onClose={() => setPublishing(false)} />}
     </div>
   );
 }
 
 // ───────────────────────── Shell ─────────────────────────
-type View = "explorer" | "studio" | "builder";
+type View = "explorer" | "studio" | "ai" | "builder";
 export function QuestionBank() {
   const [bank, setBank] = useState<BankQuestion[]>(() => makeSeedBank());
   const [loaded, setLoaded] = useState(false);
@@ -411,8 +517,9 @@ export function QuestionBank() {
     setLoaded(true);
   }, []);
   useEffect(() => { if (loaded) localStorage.setItem(KEY, JSON.stringify(bank)); }, [bank, loaded]);
+  const addMany = (qs: BankQuestion[]) => setBank((b) => [...qs, ...b]);
 
-  const nav: [View, string, typeof Database][] = [["explorer", "Question Bank", Database], ["studio", "Add Question", FilePlus2], ["builder", "Paper Builder", BookOpen]];
+  const nav: [View, string, typeof Database][] = [["explorer", "Question Bank", Database], ["studio", "Add Question", FilePlus2], ["ai", "AI PDF Import", Sparkles], ["builder", "Paper Builder", BookOpen]];
   return (
     <div className="grid gap-6 lg:grid-cols-[200px_1fr]">
       <aside className="flex gap-2 overflow-x-auto lg:flex-col">
@@ -425,7 +532,7 @@ export function QuestionBank() {
         <p className="hidden px-1 pt-2 text-[11px] text-muted-foreground lg:block">{bank.length} questions saved on this device.</p>
       </aside>
       <section className="min-w-0">
-        {view === "explorer" && <Explorer bank={bank} onEdit={(q) => { setEditing(q); setView("studio"); }} onDelete={(id) => { setBank((b) => b.filter((x) => x.id !== id)); toast.success("Question deleted"); }} />}
+        {view === "explorer" && <Explorer bank={bank} onImport={addMany} onEdit={(q) => { setEditing(q); setView("studio"); }} onDelete={(id) => { setBank((b) => b.filter((x) => x.id !== id)); toast.success("Question deleted"); }} />}
         {view === "studio" && (
           <Studio key={editing?.id ?? "new"} editing={editing} onCancel={() => { setEditing(null); setView("explorer"); }}
             onSave={(q) => {
@@ -434,6 +541,7 @@ export function QuestionBank() {
               if (editing) { setEditing(null); setView("explorer"); }
             }} />
         )}
+        {view === "ai" && <AiPdfImport onApprove={addMany} />}
         {view === "builder" && <Builder bank={bank} />}
       </section>
     </div>
