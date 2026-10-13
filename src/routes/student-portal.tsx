@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { AnimatePresence, motion } from "framer-motion";
-import { BookOpen, CalendarDays, CheckCircle2, ClipboardList, Download, LayoutDashboard, ShieldCheck, TrendingUp } from "lucide-react";
+import { BookOpen, CalendarDays, CheckCircle2, ClipboardList, Download, LayoutDashboard, ShieldCheck, Sparkles, TrendingUp } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianGrid } from "recharts";
@@ -9,6 +9,7 @@ import { NoticeBadges } from "@/components/StaffHub";
 import { Counter } from "@/components/motion";
 import { usePortal } from "@/lib/use-portal";
 import { celebrate } from "@/lib/celebrate";
+import { StudyPlanner } from "@/components/StudyPlanner";
 
 export const Route = createFileRoute("/student-portal")({
   head: () => ({
@@ -29,6 +30,7 @@ const tabs = [
   { id: "tests", label: "Tests", icon: TrendingUp },
   { id: "exams", label: "Mock Exams", icon: ShieldCheck },
   { id: "timetable", label: "Timetable", icon: CalendarDays },
+  { id: "planner", label: "AI Study Planner", icon: Sparkles },
 ] as const;
 type TabId = (typeof tabs)[number]["id"];
 
@@ -234,6 +236,8 @@ function StudentPortal() {
                 </div>
               </Card>
             )}
+
+            {tab === "planner" && <StudyPlanner recentScores={tests.map((t) => `${t.test}: ${t.score}%`).join(", ")} />}
 
             {tab === "exams" && (
               <div className="space-y-4">
