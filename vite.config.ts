@@ -2,7 +2,7 @@ import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 
 export default defineConfig({
   vite: {
-    base: "/koyanaacademyfrontend/", // 👈 Set base path for GitHub Pages
+    base: process.env.GITHUB_PAGES ? "/koyanaacademyfrontend/" : "/",
   },
   tanstackStart: {
     // Redirect TanStack Start's bundled server entry to src/server.ts
